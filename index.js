@@ -63,6 +63,12 @@ app.get("/jobs", async (req, res) => {
   res.send(data);
 });
 
+app.get('/jobs/:id',async(req,res)=>{
+    const params = req.params.id;
+    const quary = {_id : new ObjectId(params)}
+    const result = await jobs.findOne(quary);
+    res.send(result);
+})
 app.post("/jobs", async (req, res) => {
   const body = req.body;
   const result = await jobs.insertOne(body);
