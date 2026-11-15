@@ -55,6 +55,12 @@ app.get("/jobs", async (req, res) => {
     if (req.query.category) {
       quary.category = req.query.category;
     }
+
+    if(req.query.recruiterId){
+      quary.recruiterId = req.query.recruiterId
+      console.log(quary);
+    }
+
     if (req.query.search) {
       quary.$or = [
         { title: { $regex: req.query.search, $options: "i" } },
@@ -95,6 +101,9 @@ app.get("/applications", async (req, res) => {
   if (userId) {
     query.userId = userId;
   }
+  if (req.query.jobId) {
+    query.jobId = req.query.jobId;
+  }
   if (req.query.status) {
     query.status = req.query.status;
   }
@@ -126,13 +135,26 @@ app.post("/applications", async (req, res) => {
   res.send(result);
 });
 
+app.patch('/applications/:id', async(req, res) =>{
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const updatedDoc = {
+        $set: {
+            status: req.body.status,
+        }
+    }
+    const result = await applications.updateOne(query, updatedDoc);
+    res.send(result);
+})
+
+
 // paymants related apis
 app.post("/payment/chackout-verify", async (req, res) => {
   const session = req.body;
   const { status, customer_email, payment_intent, metadata, payment_status } =
     await stripe.checkout.sessions.retrieve(session.session_id);
   const user = await paymants.findOne({ userId : metadata.userId });
-  if (metadata.userId === user.userId) {
+  if (metadata.userId === user?.userId) {
     res.send({
       success: false,
       massage: "user not athorized",
@@ -165,6 +187,24 @@ app.post("/payment/chackout-verify", async (req, res) => {
   });
 });
 
+// user related apis
+app.get('/users/:id/premium',async(req,res)=>{
+  const userId = req.params.id
+  const result = await users.findOne({_id : new ObjectId(userId)});
+  res.send(result)
+})
+
+app.patch('/users/:id/role',async(req,res)=>{
+  const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const updatedDoc = {
+        $set: {
+            role: req.body.role,
+        }
+    }
+    const result = await users.updateOne(query, updatedDoc);
+    res.send(result);
+})
 app.listen(port, () => {
   console.log(`hireloop app listening on port ${port}`);
 });
