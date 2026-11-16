@@ -25,9 +25,32 @@ export async function connectToMongoDB() {
 const connectedClient = await connectToMongoDB();
 const database = connectedClient.db("hireloop");
 const users = database.collection("user");
+const sessions = database.collection("session");
 const jobs = database.collection("jobs");
 const applications = database.collection("applications");
 const paymants = database.collection("paymants");
+
+const verfiyToken =  async(req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  if(!token){
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const session = await sessions.findOne({ token });
+  if (!session) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const user = session.userId;
+  const userData = await users.findOne({ _id: user });
+  if (!userData) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  req.user = userData;
+  next();
+}
 
 app.get("/", (req, res) => {
   res.send({ msg: "created server sucessfull" });
@@ -58,7 +81,6 @@ app.get("/jobs", async (req, res) => {
 
     if(req.query.recruiterId){
       quary.recruiterId = req.query.recruiterId
-      console.log(quary);
     }
 
     if (req.query.search) {
@@ -93,7 +115,7 @@ app.delete("/jobs/:id", async (req, res) => {
 });
 
 // applications related apis
-app.get("/applications", async (req, res) => {
+app.get("/applications", verfiyToken, async (req, res) => {
   const query = {};
 
   // `userId` is the canonical filter; `applicantId` accepted as an alias.
@@ -102,6 +124,14 @@ app.get("/applications", async (req, res) => {
     query.userId = userId;
   }
   if (req.query.jobId) {
+    const jobQuary = { _id: new ObjectId(req.query.jobId) };
+    const job = await jobs.findOne(jobQuary);
+    if (!job) {
+      return res.status(404).send({ message: "Job not found" });
+    }
+    if (job.recruiterId !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).send({ message: "Forbidden: You are not the recruiter for this job" });
+    }
     query.jobId = req.query.jobId;
   }
   if (req.query.status) {
